@@ -577,7 +577,7 @@ Rectangle {
         function loadShell(formFactor, apps) {
 
             if (apps === undefined) {
-                apps = 0
+                apps = 0;
             }
 
             shellLoader.state = formFactor;
@@ -3245,6 +3245,62 @@ Rectangle {
             mouseClick(menuItem0);
             tryCompare(priv, "currentItem", menuItem0);
             tryCompare(priv.currentItem, "popupVisible", true);
+        }
+
+        function test_launcherLockedWhenNoAppsRunning_data() {
+            return [
+                {tag: "phone", shell: "phone", formFactor: "phone", launcherLocked: false},
+                {tag: "tablet", shell: "tablet", formFactor: "tablet", launcherLocked: false},
+                {tag: "desktop without auto-hide", formFactor: "desktop", shell: "desktop", launcherLocked: true},
+                {tag: "desktop with auto-hide", formFactor: "desktop", shell: "desktop", launcherLocked: false},
+                {tag: "desktop with auto-hide at small formFactor", formFactor: "phone", shell: "desktop", launcherLocked: false},
+                {tag: "tablet with auto-hide at small formFactor", formFactor: "tablet", shell: "desktop", launcherLocked: false},
+            ];
+        }
+
+        /*
+            Ensure that the Launcher will not dismiss while there are no apps
+            running, but gets dismissed when it would be intersected by
+            indicators.
+        */
+        function test_launcherLockedWhenNoAppsRunning(data) {
+            loadShell(data.shell, 0);
+            shellLoader.state = data.formFactor;
+            var launcher = findChild(shell, "launcher");
+            GSettingsController.setAutohideLauncher(!data.launcherLocked);
+            swipeAwayGreeter();
+
+            // Tap somewhere, which would cause the Launcher to hide. There are
+            // no apps running, the Launcher should still be visible.
+            // Wait so all signals get out of the way and the Launcher actually
+            // dismisses in a failure case.
+            tap(shell);
+            wait(100);
+            tryCompare(launcher, "state", "visible");
+            tryCompare(launcher, "x", 0);
+
+            // The Launcher should dismiss at phone size, but not other sizes,
+            // when the indicators open
+            showIndicators();
+            if (data.formFactor === "phone") {
+                tryCompare(launcher, "state", "");
+            } else {
+                tryCompare(launcher, "state", "visible");
+            }
+            hideIndicators();
+
+            // The Launcher should hide whenever an app starts if auto-hide
+            // is enabled (AKA locked is disabled)
+            addApps(1);
+            if (!data.launcherLocked) {
+                tryCompare(launcher, "state", "");
+            } else {
+                tryCompare(launcher, "state", "visible");
+            }
+
+            // The Launcher should return when all apps are closed
+            killApps();
+            tryCompare(launcher, "state", "visible");
         }
     }
 }
